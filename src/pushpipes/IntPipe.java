@@ -6,29 +6,8 @@ import java.util.functions.IntBinaryOperator;
 /**
  * @author peter.levart@gmail.com
  */
-public abstract class IntPipe extends AbstractPipe
+public abstract class IntPipe extends AbstractPipe<IntBlock>
 {
-   protected IntBlock downstream;
-
-   protected final IntBlock connect(IntBlock downstream)
-   {
-      if (this.downstream != null)
-         throw new IllegalStateException("This IntPipe is already connected to a downstream IntBlock");
-
-      this.downstream = downstream;
-
-      return downstream;
-   }
-
-   protected final void disconnect(Object downstream)
-   {
-      if (this.downstream != downstream)
-         throw new IllegalStateException("This IntPipe is not connected to the downstream IntBlock");
-
-      this.downstream = null;
-   }
-
-
    //
    // pipe chain building...
 
@@ -47,15 +26,15 @@ public abstract class IntPipe extends AbstractPipe
 
    private int process(IntResultBlock resultBlock)
    {
-      connect(resultBlock);
+      AbstractPipe<IntBlock> pipe = connect(resultBlock);
       try
       {
-         process();
+         pipe.process();
          return resultBlock.getResult();
       }
       finally
       {
-         disconnect(resultBlock);
+         pipe.disconnect(resultBlock);
       }
    }
 

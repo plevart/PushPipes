@@ -9,7 +9,7 @@ import java.util.functions.*;
 /**
  * @author peter.levart@gmail.com
  */
-public abstract class BiPipe<T, U> extends AbstractPipe
+public abstract class BiPipe<T, U> extends AbstractPipe<BiBlock<? super T, ? super U>>
 {
    //
    // constructing
@@ -20,70 +20,47 @@ public abstract class BiPipe<T, U> extends AbstractPipe
    }
 
    //
-   // connecting/disconnecting downstream
-
-   protected BiBlock<? super T, ? super U> downstream;
-
-   protected final <DS extends BiBlock<? super T, ? super U>> DS connect(DS downstream)
-   {
-      if (this.downstream != null)
-         throw new IllegalStateException("This BiPipe is already connected to a downstream BiBlock");
-
-      this.downstream = downstream;
-
-      return downstream;
-   }
-
-   protected final void disconnect(BiBlock<? super T, ? super U> downstream)
-   {
-      if (this.downstream != downstream)
-         throw new IllegalStateException("This BiPipe is not connected to the downstream BiBlock");
-
-      this.downstream = null;
-   }
-
-   //
    // pipe chain building...
 
    public Pipe<T> keys()
    {
-      return connect(new Step<T, U, T>(this)
+      return new Step<T, U, T>(this)
       {
          @Override
          public void apply(T t, U u)
          {
             downstream.apply(t);
          }
-      });
+      };
    }
 
    public Pipe<U> values()
    {
-      return connect(new Step<T, U, U>(this)
+      return new Step<T, U, U>(this)
       {
          @Override
          public void apply(T t, U u)
          {
             downstream.apply(u);
          }
-      });
+      };
    }
 
    public BiPipe<U, T> swap()
    {
-      return connect(new BiStep<T, U, U, T>(this)
+      return new BiStep<T, U, U, T>(this)
       {
          @Override
          public void apply(T t, U u)
          {
             downstream.apply(u, t);
          }
-      });
+      };
    }
 
    public BiPipe<T, U> filterKeys(final Predicate<? super T> keyPredicate)
    {
-      return connect(new BiStep<T, U, T, U>(this)
+      return new BiStep<T, U, T, U>(this)
       {
          @Override
          public void apply(T t, U u)
@@ -91,12 +68,12 @@ public abstract class BiPipe<T, U> extends AbstractPipe
             if (keyPredicate.test(t))
                downstream.apply(t, u);
          }
-      });
+      };
    }
 
    public BiPipe<T, U> filterValues(final Predicate<? super U> valuePredicate)
    {
-      return connect(new BiStep<T, U, T, U>(this)
+      return new BiStep<T, U, T, U>(this)
       {
          @Override
          public void apply(T t, U u)
@@ -104,12 +81,12 @@ public abstract class BiPipe<T, U> extends AbstractPipe
             if (valuePredicate.test(u))
                downstream.apply(t, u);
          }
-      });
+      };
    }
 
    public BiPipe<T, U> filter(final BiPredicate<? super T, ? super U> predicate)
    {
-      return connect(new BiStep<T, U, T, U>(this)
+      return new BiStep<T, U, T, U>(this)
       {
          @Override
          public void apply(T t, U u)
@@ -117,55 +94,55 @@ public abstract class BiPipe<T, U> extends AbstractPipe
             if (predicate.eval(t, u))
                downstream.apply(t, u);
          }
-      });
+      };
    }
 
    public <V> BiPipe<T, V> map(final BiMapper<? super T, ? super U, ? extends V> mapper)
    {
-      return connect(new BiStep<T, U, T, V>(this)
+      return new BiStep<T, U, T, V>(this)
       {
          @Override
          public void apply(T t, U u)
          {
             downstream.apply(t, mapper.map(t, u));
          }
-      });
+      };
    }
 
    public <V> BiPipe<T, V> mapValues(final Mapper<? super U, ? extends V> valueMapper)
    {
-      return connect(new BiStep<T, U, T, V>(this)
+      return new BiStep<T, U, T, V>(this)
       {
          @Override
          public void apply(T t, U u)
          {
             downstream.apply(t, valueMapper.map(u));
          }
-      });
+      };
    }
 
    public <V> BiPipe<T, Pipe<V>> mapValuesMulti(final BiMapper<? super T, ? super U, Iterable<V>> mapper)
    {
-      return connect(new BiStep<T, U, T, Pipe<V>>(this)
+      return new BiStep<T, U, T, Pipe<V>>(this)
       {
          @Override
          public void apply(T t, U u)
          {
             downstream.apply(t, Pipe.from(mapper.map(t, u)));
          }
-      });
+      };
    }
 
    public BiPipe<T, Pipe<U>> asMulti()
    {
-      return connect(new BiStep<T, U, T, Pipe<U>>(this)
+      return new BiStep<T, U, T, Pipe<U>>(this)
       {
          @Override
          public void apply(T t, U u)
          {
             downstream.apply(t, Pipe.from(u));
          }
-      });
+      };
    }
 
    //
@@ -173,28 +150,29 @@ public abstract class BiPipe<T, U> extends AbstractPipe
 
    public long count()
    {
-      BiCounter counter = connect(new BiCounter());
+      BiCounter counter = new BiCounter();
+      AbstractPipe<BiBlock<? super T, ? super U>> pipe = connect(counter);
       try
       {
-         process();
+         pipe.process();
          return counter.getCount();
       }
       finally
       {
-         disconnect(counter);
+         pipe.disconnect(counter);
       }
    }
 
    public void forEach(BiBlock<? super T, ? super U> block)
    {
-      connect(block);
+      AbstractPipe<BiBlock<? super T, ? super U>> pipe = connect(block);
       try
       {
-         process();
+         pipe.process();
       }
       finally
       {
-         disconnect(block);
+         pipe.disconnect(block);
       }
    }
 
@@ -214,7 +192,7 @@ public abstract class BiPipe<T, U> extends AbstractPipe
 
    public BiValue<T, U> getFirst()
    {
-      SingleResultBiBlock<T, U> collector = new SingleResultBiBlock<>(LongBreak.INSTANCE);
+      SingleResultBiBlock<T, U> collector = new SingleResultBiBlock<>(true);
       try
       {
          return process(collector);
@@ -227,7 +205,7 @@ public abstract class BiPipe<T, U> extends AbstractPipe
 
    public BiValue<T, U> getSingle()
    {
-      return process(new SingleResultBiBlock<T, U>());
+      return process(new SingleResultBiBlock<T, U>(false));
    }
 
    public T getFirstKey()
@@ -252,24 +230,25 @@ public abstract class BiPipe<T, U> extends AbstractPipe
 
    private BiValue<T, U> process(ResultBiBlock<T, U> resultBiBlock)
    {
-      connect(resultBiBlock);
+      AbstractPipe<BiBlock<? super T, ? super U>> pipe = connect(resultBiBlock);
       try
       {
-         process();
+         pipe.process();
          return resultBiBlock.getResult();
       }
       finally
       {
-         disconnect(resultBiBlock);
+         pipe.disconnect(resultBiBlock);
       }
    }
 
    public boolean anyMatch(BiPredicate<? super T, ? super U> predicate)
    {
-      BreakOnFirstMatch<T, U> breakOnFirstMatch = connect(new BreakOnFirstMatch<>(predicate));
+      BreakOnFirstMatch<T, U> breakOnFirstMatch = new BreakOnFirstMatch<>(predicate);
+      AbstractPipe<BiBlock<? super T, ? super U>> pipe = connect(breakOnFirstMatch);
       try
       {
-         process();
+         pipe.process();
          return false;
       }
       catch (LongBreak lb)
@@ -278,16 +257,17 @@ public abstract class BiPipe<T, U> extends AbstractPipe
       }
       finally
       {
-         disconnect(breakOnFirstMatch);
+         pipe.disconnect(breakOnFirstMatch);
       }
    }
 
    public boolean allMatch(BiPredicate<? super T, ? super U> predicate)
    {
-      BreakOnFirstMatch<T, U> breakOnFirstNonMatch = connect(new BreakOnFirstMatch<>(predicate.negate()));
+      BreakOnFirstMatch<T, U> breakOnFirstNonMatch = new BreakOnFirstMatch<>(predicate.negate());
+      AbstractPipe<BiBlock<? super T, ? super U>> pipe = connect(breakOnFirstNonMatch);
       try
       {
-         process();
+         pipe.process();
          return true;
       }
       catch (LongBreak lb)
@@ -296,7 +276,7 @@ public abstract class BiPipe<T, U> extends AbstractPipe
       }
       finally
       {
-         disconnect(breakOnFirstNonMatch);
+         pipe.disconnect(breakOnFirstNonMatch);
       }
    }
 
@@ -332,11 +312,11 @@ public abstract class BiPipe<T, U> extends AbstractPipe
 
    static abstract class BiStep<TI, UI, TO, UO> extends BiPipe<TO, UO> implements BiBlock<TI, UI>
    {
-      private final BiPipe<TI, UI> upstream;
+      private final AbstractPipe<BiBlock<? super TI, ? super UI>> upstream;
 
       BiStep(BiPipe<TI, UI> upstream)
       {
-         this.upstream = upstream;
+         this.upstream = upstream.connect(this);
       }
 
       @Override
@@ -348,11 +328,11 @@ public abstract class BiPipe<T, U> extends AbstractPipe
 
    static abstract class Step<TI, UI, O> extends Pipe<O> implements BiBlock<TI, UI>
    {
-      private final BiPipe<TI, UI> upstream;
+      private final AbstractPipe<BiBlock<? super TI, ? super UI>> upstream;
 
       Step(BiPipe<TI, UI> upstream)
       {
-         this.upstream = upstream;
+         this.upstream = upstream.connect(this);
       }
 
       @Override
@@ -417,28 +397,24 @@ public abstract class BiPipe<T, U> extends AbstractPipe
 
    static class SingleResultBiBlock<T, U> extends ResultBiBlock<T, U>
    {
-      private final RuntimeException exceptionThrownOnSecondResult;
+      private final boolean breakAfterFirstResult;
 
-      SingleResultBiBlock()
+      SingleResultBiBlock(boolean breakAfterFirstResult)
       {
-         this.exceptionThrownOnSecondResult = null;
-      }
-
-      SingleResultBiBlock(RuntimeException exceptionThrownOnSecondResult)
-      {
-         this.exceptionThrownOnSecondResult = exceptionThrownOnSecondResult;
+         this.breakAfterFirstResult = breakAfterFirstResult;
       }
 
       @Override
       public void apply(T t, U u)
       {
          if (key != NONE || value != NONE)
-            throw exceptionThrownOnSecondResult == null
-                  ? new IllegalStateException("Multiple results")
-                  : exceptionThrownOnSecondResult;
+            throw new IllegalStateException("Multiple results");
 
          key = t;
          value = u;
+
+         if (breakAfterFirstResult)
+            throw LongBreak.INSTANCE;
       }
    }
 
@@ -459,7 +435,7 @@ public abstract class BiPipe<T, U> extends AbstractPipe
       }
    }
 
-   static class LongBreak extends RuntimeException
+   private static class LongBreak extends RuntimeException
    {
       static final LongBreak INSTANCE = new LongBreak();
 

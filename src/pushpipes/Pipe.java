@@ -1,13 +1,15 @@
 package pushpipes;
 
-import java.util.NoSuchElementException;
+import java.util.*;
 import java.util.functions.*;
 
 /**
  * @author peter.levart@gmail.com
  */
-public abstract class Pipe<T> extends AbstractPipe
+public abstract class Pipe<T> extends AbstractPipe<Block<? super T>>
 {
+   private static final int DEFAULT_BUFFER_CAPACITY = 256;
+
    //
    // constructing
 
@@ -21,32 +23,10 @@ public abstract class Pipe<T> extends AbstractPipe
       return new SingletonPipe<>(value);
    }
 
+   @SafeVarargs
    public static <T> Pipe<T> from(T... values)
    {
       return new ArrayPipe<>(values);
-   }
-
-   //
-   // connecting/disconnecting downstream
-
-   protected Block<? super T> downstream;
-
-   protected final <DS extends Block<? super T>> DS connect(DS downstream)
-   {
-      if (this.downstream != null)
-         throw new IllegalStateException("This Pipe is already connected to a downstream Block");
-
-      this.downstream = downstream;
-
-      return downstream;
-   }
-
-   protected final void disconnect(Block<? super T> downstream)
-   {
-      if (this.downstream != downstream)
-         throw new IllegalStateException("This Pipe is not connected to the downstream Block");
-
-      this.downstream = null;
    }
 
    //
@@ -54,70 +34,270 @@ public abstract class Pipe<T> extends AbstractPipe
 
    public Pipe<T> filter(final Predicate<? super T> predicate)
    {
-      return connect(new Step<T, T>(this)
+      return new Step<T, T>(this)
       {
          public void apply(T arg)
          {
             if (predicate.test(arg))
                downstream.apply(arg);
          }
-      });
+      };
    }
 
    public <U> Pipe<U> map(final Mapper<? super T, ? extends U> mapper)
    {
-      return connect(new Step<T, U>(this)
+      return new Step<T, U>(this)
       {
          public void apply(T arg)
          {
             downstream.apply(mapper.map(arg));
          }
-      });
+      };
    }
 
    public <U> Pipe<U> flatMap(final Mapper<? super T, ? extends Iterable<U>> mapper)
    {
-      return connect(new Step<T, U>(this)
+      return new Step<T, U>(this)
       {
          public void apply(T arg)
          {
             for (U element : mapper.map(arg))
                downstream.apply(element);
          }
-      });
+      };
    }
 
    public IntPipe mapInt(final IntMapper<? super T> mapper)
    {
-      return connect(new IntStep<T>(this)
+      return new IntStep<T>(this)
       {
          public void apply(T arg)
          {
             downstream.apply(mapper.map(arg));
          }
-      });
+      };
    }
 
    public LongPipe mapLong(final LongMapper<? super T> mapper)
    {
-      return connect(new LongStep<T>(this)
+      return new LongStep<T>(this)
       {
          public void apply(T arg)
          {
             downstream.apply(mapper.map(arg));
          }
-      });
+      };
    }
 
    public DoublePipe mapDouble(final DoubleMapper<? super T> mapper)
    {
-      return connect(new DoubleStep<T>(this)
+      return new DoubleStep<T>(this)
       {
          public void apply(T arg)
          {
             downstream.apply(mapper.map(arg));
          }
-      });
+      };
+   }
+
+   public Pipe<T> cumulate(final BinaryOperator<T> op)
+   {
+      return new Step<T, T>(this)
+      {
+         private boolean first;
+         private T next;
+
+         @Override
+         public void apply(T t)
+         {
+            if (first)
+            {
+               next = t;
+               first = false;
+            }
+            else
+            {
+               next = op.eval(next, t);
+            }
+
+            downstream.apply(next);
+         }
+
+         @Override
+         protected void process()
+         {
+            first = true;
+            try
+            {
+               super.process();
+            }
+            finally
+            {
+               next = null;
+            }
+         }
+      };
+   }
+
+   public Pipe<T> sorted(final Comparator<? super T> comparator)
+   {
+      return new Step<T, T>(this)
+      {
+         PriorityQueue<T> pq;
+
+         @Override
+         public void apply(T t)
+         {
+            pq.add(t);
+         }
+
+         @Override
+         protected void process()
+         {
+            pq = new PriorityQueue<>(DEFAULT_BUFFER_CAPACITY, comparator);
+
+            try
+            {
+               super.process();
+
+               while (!pq.isEmpty())
+                  downstream.apply(pq.remove());
+            }
+            finally
+            {
+               pq.clear();
+               pq = null;
+            }
+         }
+      };
+   }
+
+   public Pipe<T> uniqueElements()
+   {
+      return new Step<T, T>(this)
+      {
+         Set<T> seen;
+
+         @Override
+         public void apply(T t)
+         {
+            if (seen.add(t))
+               downstream.apply(t);
+         }
+
+         @Override
+         protected void process()
+         {
+            seen = new HashSet<>(DEFAULT_BUFFER_CAPACITY * 4 / 3 + 1, 0.75f);
+            try
+            {
+               super.process();
+            }
+            finally
+            {
+               seen.clear();
+               seen = null;
+            }
+         }
+      };
+   }
+
+   public <U> BiPipe<T, U> mapped(final Mapper<? super T, ? extends U> mapper)
+   {
+      return new BiStep<T, T, U>(this)
+      {
+         @Override
+         public void apply(T t)
+         {
+            downstream.apply(t, mapper.map(t));
+         }
+      };
+   }
+
+   public <U> BiPipe<U, ? extends Iterable<T>> groupBy(final Mapper<? super T, ? extends U> mapper)
+   {
+      return new BiStep<T, U, Iterable<T>>(this)
+      {
+         private Map<U, Collection<T>> multiMap;
+
+         @Override
+         public void apply(T t)
+         {
+            U key = mapper.map(t);
+            Collection<T> values = multiMap.get(key);
+            if (values == null)
+            {
+               values = new ArrayList<>();
+               multiMap.put(key, values);
+            }
+            values.add(t);
+         }
+
+         @Override
+         protected void process()
+         {
+            multiMap = new HashMap<>();
+
+            try
+            {
+               super.process();
+
+               for (Map.Entry<U, Collection<T>> entry : multiMap.entrySet())
+               {
+                  downstream.apply(entry.getKey(), entry.getValue());
+               }
+            }
+            finally
+            {
+               multiMap.clear();
+               multiMap = null;
+            }
+         }
+      };
+   }
+
+   public <U> BiPipe<U, ? extends Iterable<T>> groupByMulti(final Mapper<? super T, ? extends Iterable<U>> mapper)
+   {
+      return new BiStep<T, U, Iterable<T>>(this)
+      {
+         private Map<U, Collection<T>> multiMap;
+
+         @Override
+         public void apply(T t)
+         {
+            for (U key : mapper.map(t))
+            {
+               Collection<T> values = multiMap.get(key);
+               if (values == null)
+               {
+                  values = new ArrayList<>();
+                  multiMap.put(key, values);
+               }
+               values.add(t);
+            }
+         }
+
+         @Override
+         protected void process()
+         {
+            multiMap = new HashMap<>();
+
+            try
+            {
+               super.process();
+
+               for (Map.Entry<U, Collection<T>> entry : multiMap.entrySet())
+               {
+                  downstream.apply(entry.getKey(), entry.getValue());
+               }
+            }
+            finally
+            {
+               multiMap.clear();
+               multiMap = null;
+            }
+         }
+      };
    }
 
    //
@@ -125,34 +305,52 @@ public abstract class Pipe<T> extends AbstractPipe
 
    public long count()
    {
-      Counter counter = connect(new Counter());
+      Counter counter = new Counter();
+      AbstractPipe<Block<? super T>> pipe = connect(counter);
       try
       {
-         process();
+         pipe.process();
          return counter.getCount();
       }
       finally
       {
-         disconnect(counter);
+         pipe.disconnect(counter);
       }
    }
 
    public void forEach(Block<? super T> block)
    {
-      connect(block);
+      AbstractPipe<Block<? super T>> pipe = connect(block);
       try
       {
-         process();
+         pipe.process();
       }
       finally
       {
-         disconnect(block);
+         pipe.disconnect(block);
       }
+   }
+
+   public <A extends Fillable<? super T>> A into(final A target)
+   {
+      BufferBlock<T> bufferBlock = new BufferBlock<T>()
+      {
+         @Override
+         protected void flush(Iterable<T> buffer)
+         {
+            target.addAll(buffer);
+         }
+      };
+
+      forEach(bufferBlock);
+      bufferBlock.flush();
+
+      return target;
    }
 
    public T getFirst()
    {
-      SingleResultBlock<T> collector = new SingleResultBlock<>(LongBreak.INSTANCE);
+      SingleResultBlock<T> collector = new SingleResultBlock<>(true);
       try
       {
          return process(collector);
@@ -165,7 +363,7 @@ public abstract class Pipe<T> extends AbstractPipe
 
    public T getSingle()
    {
-      return process(new SingleResultBlock<T>());
+      return process(new SingleResultBlock<T>(false));
    }
 
    public T reduce(BinaryOperator<T> reducer)
@@ -180,15 +378,15 @@ public abstract class Pipe<T> extends AbstractPipe
 
    private T process(ResultBlock<T> resultBlock)
    {
-      connect(resultBlock);
+      AbstractPipe<Block<? super T>> pipe = connect(resultBlock);
       try
       {
-         process();
+         pipe.process();
          return resultBlock.getResult();
       }
       finally
       {
-         disconnect(resultBlock);
+         pipe.disconnect(resultBlock);
       }
    }
 
@@ -247,11 +445,27 @@ public abstract class Pipe<T> extends AbstractPipe
 
    static abstract class Step<I, O> extends Pipe<O> implements Block<I>
    {
-      private final Pipe<I> upstream;
+      private final AbstractPipe<Block<? super I>> upstream;
 
       Step(Pipe<I> upstream)
       {
-         this.upstream = upstream;
+         this.upstream = upstream.connect(this);
+      }
+
+      @Override
+      protected void process()
+      {
+         upstream.process();
+      }
+   }
+
+   static abstract class BiStep<I, OT, OU> extends BiPipe<OT, OU> implements Block<I>
+   {
+      private final AbstractPipe<Block<? super I>> upstream;
+
+      BiStep(Pipe<I> upstream)
+      {
+         this.upstream = upstream.connect(this);
       }
 
       @Override
@@ -263,11 +477,11 @@ public abstract class Pipe<T> extends AbstractPipe
 
    static abstract class IntStep<I> extends IntPipe implements Block<I>
    {
-      private final Pipe<I> upstream;
+      private final AbstractPipe<Block<? super I>> upstream;
 
       IntStep(Pipe<I> upstream)
       {
-         this.upstream = upstream;
+         this.upstream = upstream.connect(this);
       }
 
       @Override
@@ -279,11 +493,11 @@ public abstract class Pipe<T> extends AbstractPipe
 
    static abstract class LongStep<I> extends LongPipe implements Block<I>
    {
-      private final Pipe<I> upstream;
+      private final AbstractPipe<Block<? super I>> upstream;
 
       LongStep(Pipe<I> upstream)
       {
-         this.upstream = upstream;
+         this.upstream = upstream.connect(this);
       }
 
       @Override
@@ -295,11 +509,11 @@ public abstract class Pipe<T> extends AbstractPipe
 
    static abstract class DoubleStep<I> extends DoublePipe implements Block<I>
    {
-      private final Pipe<I> upstream;
+      private final AbstractPipe<Block<? super I>> upstream;
 
       DoubleStep(Pipe<I> upstream)
       {
-         this.upstream = upstream;
+         this.upstream = upstream.connect(this);
       }
 
       @Override
@@ -352,26 +566,22 @@ public abstract class Pipe<T> extends AbstractPipe
 
    static class SingleResultBlock<T> extends ResultBlock<T>
    {
-      private final RuntimeException exceptionThrownOnSecondResult;
+      private final boolean breakAfterFirstResult;
 
-      SingleResultBlock()
+      SingleResultBlock(boolean breakAfterFirstResult)
       {
-         this.exceptionThrownOnSecondResult = null;
-      }
-
-      SingleResultBlock(RuntimeException exceptionThrownOnSecondResult)
-      {
-         this.exceptionThrownOnSecondResult = exceptionThrownOnSecondResult;
+         this.breakAfterFirstResult = breakAfterFirstResult;
       }
 
       public void apply(T t)
       {
          if (result != NONE)
-            throw exceptionThrownOnSecondResult == null
-                  ? new IllegalStateException("Multiple results")
-                  : exceptionThrownOnSecondResult;
+            throw new IllegalStateException("Multiple results");
 
          result = t;
+
+         if (breakAfterFirstResult)
+            throw LongBreak.INSTANCE;
       }
    }
 
@@ -398,7 +608,43 @@ public abstract class Pipe<T> extends AbstractPipe
       }
    }
 
-   static class LongBreak extends RuntimeException
+   static abstract class BufferBlock<T> implements Block<T>
+   {
+      private final int capacity;
+      private final Collection<T> buffer;
+
+      BufferBlock()
+      {
+         this(DEFAULT_BUFFER_CAPACITY);
+      }
+
+      BufferBlock(int capacity)
+      {
+         this.capacity = capacity;
+         buffer = new ArrayList<>(capacity);
+      }
+
+      @Override
+      public void apply(T t)
+      {
+         buffer.add(t);
+         if (buffer.size() >= capacity)
+            flush();
+      }
+
+      void flush()
+      {
+         if (!buffer.isEmpty())
+         {
+            flush(buffer);
+            buffer.clear();
+         }
+      }
+
+      protected abstract void flush(Iterable<T> buffer);
+   }
+
+   private static class LongBreak extends RuntimeException
    {
       static final LongBreak INSTANCE = new LongBreak();
 
@@ -413,18 +659,95 @@ public abstract class Pipe<T> extends AbstractPipe
       }
    }
 
-//   public static void main(String[] args)
-//   {
-//      List<String> strings = Arrays.asList("Peter", "Renata", "XYZ");
-//
-//      Pipe
-//         .from(strings)
+   public static void main(String[] args)
+   {
+      List<String> strings = Arrays.asList("Peter", "Renata", "XYZ");
+
+//      Pipe<String> longUpperStrings = Pipe.from(strings)
 //         .filter((s) -> s.length() > 3)
-//         .map((s) -> s.toUpperCase())
-//         .forEach((s) -> { System.out.println(s);})
-//      ;
+//         .map((s) -> s.toUpperCase());
 //
+//      longUpperStrings.forEach((s) -> {System.out.println("longUpper: " + s);});
+//
+//      System.out.println("singleR: " + longUpperStrings.filter((s) -> s.startsWith("R")).getSingle());
+//      try
+//      {
+//         System.out.println("singleP: " + longUpperStrings.filter((s) -> s.startsWith("P")).getSingle());
+//      }
+//      catch (IllegalStateException e)
+//      {
+//         System.out.println(e.toString());
+//      }
 //      int len = Pipe.from(strings).mapInt((s) -> s.length()).reduce((l1, l2) -> l1 + l2);
 //      System.out.println(len);
-//   }
+
+      Map<Integer, String> byLength =
+         Pipe.from(strings)
+            .mapped(
+               new Mapper<String, Integer>()
+               {
+                  @Override
+                  public Integer map(String s)
+                  {
+                     return s.length();
+                  }
+               }
+            )
+            .swap()
+            .into(
+               new HashMap<Integer, String>()
+            );
+
+      System.out.println(byLength);
+
+
+      Map<Character, ? extends Iterable<String>> byChar =
+         Pipe.from(strings)
+            .groupByMulti(
+               new Mapper<String, Iterable<Character>>()
+               {
+                  @Override
+                  public Iterable<Character> map(final String s)
+                  {
+                     return new Iterable<Character>()
+                     {
+                        @Override
+                        public Iterator<Character> iterator()
+                        {
+                           return new Iterator<Character>()
+                           {
+                              int i = 0;
+
+                              @Override
+                              public boolean hasNext()
+                              {
+                                 return i < s.length();
+                              }
+
+                              @Override
+                              public Character next()
+                              {
+                                 if (!hasNext())
+                                    throw new NoSuchElementException();
+
+                                 return s.charAt(i++);
+                              }
+
+                              @Override
+                              public void remove()
+                              {
+                                 throw new UnsupportedOperationException();
+                              }
+                           };
+                        }
+                     };
+                  }
+               }
+            )
+            .into(
+               new HashMap<Character, Iterable<String>>()
+            );
+
+      System.out.println(byChar);
+   }
 }

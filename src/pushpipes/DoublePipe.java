@@ -6,29 +6,8 @@ import java.util.functions.DoubleBinaryOperator;
 /**
  * @author peter.levart@gmail.com
  */
-public abstract class DoublePipe extends AbstractPipe
+public abstract class DoublePipe extends AbstractPipe<DoubleBlock>
 {
-   protected DoubleBlock downstream;
-
-   protected final DoubleBlock connect(DoubleBlock downstream)
-   {
-      if (this.downstream != null)
-         throw new IllegalStateException("This DoublePipe is already connected to a downstream DoubleBlock");
-
-      this.downstream = downstream;
-
-      return downstream;
-   }
-
-   protected final void disconnect(Object downstream)
-   {
-      if (this.downstream != downstream)
-         throw new IllegalStateException("This DoublePipe is not connected to the downstream DoubleBlock");
-
-      this.downstream = null;
-   }
-
-
    //
    // pipe chain building...
 
@@ -47,15 +26,15 @@ public abstract class DoublePipe extends AbstractPipe
 
    private double process(DoubleResultBlock resultBlock)
    {
-      connect(resultBlock);
+      AbstractPipe<DoubleBlock> pipe = connect(resultBlock);
       try
       {
-         process();
+         pipe.process();
          return resultBlock.getResult();
       }
       finally
       {
-         disconnect(resultBlock);
+         pipe.disconnect(resultBlock);
       }
    }
 

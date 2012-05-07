@@ -6,29 +6,8 @@ import java.util.functions.LongBinaryOperator;
 /**
  * @author peter.levart@gmail.com
  */
-public abstract class LongPipe extends AbstractPipe
+public abstract class LongPipe extends AbstractPipe<LongBlock>
 {
-   protected LongBlock downstream;
-
-   protected final LongBlock connect(LongBlock downstream)
-   {
-      if (this.downstream != null)
-         throw new IllegalStateException("This LongPipe is already connected to a downstream LongBlock");
-
-      this.downstream = downstream;
-
-      return downstream;
-   }
-
-   protected final void disconnect(Object downstream)
-   {
-      if (this.downstream != downstream)
-         throw new IllegalStateException("This LongPipe is not connected to the downstream LongBlock");
-
-      this.downstream = null;
-   }
-
-
    //
    // pipe chain building...
 
@@ -47,15 +26,15 @@ public abstract class LongPipe extends AbstractPipe
 
    private long process(LongResultBlock resultBlock)
    {
-      connect(resultBlock);
+      AbstractPipe<LongBlock> pipe = connect(resultBlock);
       try
       {
-         process();
+         pipe.process();
          return resultBlock.getResult();
       }
       finally
       {
-         disconnect(resultBlock);
+         pipe.disconnect(resultBlock);
       }
    }
 
