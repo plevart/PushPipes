@@ -8,8 +8,6 @@ import java.util.functions.*;
  */
 public abstract class Pipe<T> extends AbstractPipe<Block<? super T>>
 {
-   private static final int DEFAULT_BUFFER_CAPACITY = 256;
-
    //
    // constructing
 
@@ -51,6 +49,20 @@ public abstract class Pipe<T> extends AbstractPipe<Block<? super T>>
          public void apply(T arg)
          {
             downstream.apply(mapper.map(arg));
+         }
+      };
+   }
+
+   /**
+    * This makes sense only in the push pipes...
+    */
+   public <U> Pipe<U> map(final BiBlock<? super T, Block<? super U>> pushMapper)
+   {
+      return new Step<T, U>(this)
+      {
+         public void apply(T arg)
+         {
+            pushMapper.apply(arg, downstream);
          }
       };
    }
@@ -139,6 +151,11 @@ public abstract class Pipe<T> extends AbstractPipe<Block<? super T>>
       };
    }
 
+   public Pipe<T> sorted()
+   {
+      return sorted(null);
+   }
+
    public Pipe<T> sorted(final Comparator<? super T> comparator)
    {
       return new Step<T, T>(this)
@@ -154,7 +171,9 @@ public abstract class Pipe<T> extends AbstractPipe<Block<? super T>>
          @Override
          protected void process()
          {
-            pq = new PriorityQueue<>(DEFAULT_BUFFER_CAPACITY, comparator);
+            pq = comparator == null
+                 ? new PriorityQueue<T>(DEFAULT_BUFFER_CAPACITY)
+                 : new PriorityQueue<T>(DEFAULT_BUFFER_CAPACITY, comparator);
 
             try
             {
@@ -170,6 +189,22 @@ public abstract class Pipe<T> extends AbstractPipe<Block<? super T>>
             }
          }
       };
+   }
+
+   public <C extends Comparable<C>> Pipe<T> sortBy(final Mapper<? super T, C> sortKeyExtractor)
+   {
+      return sorted(
+         new Comparator<T>()
+         {
+            @Override
+            public int compare(T t1, T t2)
+            {
+               return
+                  sortKeyExtractor.map(t1)
+                     .compareTo(sortKeyExtractor.map(t2));
+            }
+         }
+      );
    }
 
    public Pipe<T> uniqueElements()
@@ -214,7 +249,7 @@ public abstract class Pipe<T> extends AbstractPipe<Block<? super T>>
       };
    }
 
-   public <U> BiPipe<U, ? extends Iterable<T>> groupBy(final Mapper<? super T, ? extends U> mapper)
+   public <U> BiPipe<U, Iterable<T>> groupBy(final Mapper<? super T, ? extends U> mapper)
    {
       return new BiStep<T, U, Iterable<T>>(this)
       {
@@ -657,97 +692,5 @@ public abstract class Pipe<T> extends AbstractPipe<Block<? super T>>
       {
          return this;
       }
-   }
-
-   public static void main(String[] args)
-   {
-      List<String> strings = Arrays.asList("Peter", "Renata", "XYZ");
-
-//      Pipe<String> longUpperStrings = Pipe.from(strings)
-//         .filter((s) -> s.length() > 3)
-//         .map((s) -> s.toUpperCase());
-//
-//      longUpperStrings.forEach((s) -> {System.out.println("longUpper: " + s);});
-//
-//      System.out.println("singleR: " + longUpperStrings.filter((s) -> s.startsWith("R")).getSingle());
-//      try
-//      {
-//         System.out.println("singleP: " + longUpperStrings.filter((s) -> s.startsWith("P")).getSingle());
-//      }
-//      catch (IllegalStateException e)
-//      {
-//         System.out.println(e.toString());
-//      }
-//      int len = Pipe.from(strings).mapInt((s) -> s.length()).reduce((l1, l2) -> l1 + l2);
-//      System.out.println(len);
-
-      Map<Integer, String> byLength =
-         Pipe.from(strings)
-            .mapped(
-               new Mapper<String, Integer>()
-               {
-                  @Override
-                  public Integer map(String s)
-                  {
-                     return s.length();
-                  }
-               }
-            )
-            .swap()
-            .into(
-               new HashMap<Integer, String>()
-            );
-
-      System.out.println(byLength);
-
-
-      Map<Character, ? extends Iterable<String>> byChar =
-         Pipe.from(strings)
-            .groupByMulti(
-               new Mapper<String, Iterable<Character>>()
-               {
-                  @Override
-                  public Iterable<Character> map(final String s)
-                  {
-                     return new Iterable<Character>()
-                     {
-                        @Override
-                        public Iterator<Character> iterator()
-                        {
-                           return new Iterator<Character>()
-                           {
-                              int i = 0;
-
-                              @Override
-                              public boolean hasNext()
-                              {
-                                 return i < s.length();
-                              }
-
-                              @Override
-                              public Character next()
-                              {
-                                 if (!hasNext())
-                                    throw new NoSuchElementException();
-
-                                 return s.charAt(i++);
-                              }
-
-                              @Override
-                              public void remove()
-                              {
-                                 throw new UnsupportedOperationException();
-                              }
-                           };
-                        }
-                     };
-                  }
-               }
-            )
-            .into(
-               new HashMap<Character, Iterable<String>>()
-            );
-
-      System.out.println(byChar);
    }
 }

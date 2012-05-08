@@ -5,6 +5,8 @@ package pushpipes;
  */
 abstract class AbstractPipe<B>
 {
+   protected static final int DEFAULT_BUFFER_CAPACITY = 256;
+
    //
    // initiating execution
 

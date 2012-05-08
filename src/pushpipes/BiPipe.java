@@ -1,9 +1,6 @@
 package pushpipes;
 
-import java.util.Comparator;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.functions.*;
 
 /**
@@ -121,26 +118,142 @@ public abstract class BiPipe<T, U> extends AbstractPipe<BiBlock<? super T, ? sup
       };
    }
 
-   public <V> BiPipe<T, Pipe<V>> mapValuesMulti(final BiMapper<? super T, ? super U, Iterable<V>> mapper)
+   public <V> BiPipe<T, V> flatMap(final BiMapper<? super T, ? super U, ? extends Iterable<V>> mapper)
    {
-      return new BiStep<T, U, T, Pipe<V>>(this)
+      return new BiStep<T, U, T, V>(this)
       {
          @Override
          public void apply(T t, U u)
          {
-            downstream.apply(t, Pipe.from(mapper.map(t, u)));
+            for (V v : mapper.map(t, u))
+               downstream.apply(t, v);
          }
       };
    }
 
-   public BiPipe<T, Pipe<U>> asMulti()
+   public BiPipe<T, ? extends Iterable<U>> asMulti()
    {
-      return new BiStep<T, U, T, Pipe<U>>(this)
+      return new BiStep<T, U, T, Iterable<U>>(this)
       {
          @Override
          public void apply(T t, U u)
          {
-            downstream.apply(t, Pipe.from(u));
+            downstream.apply(t, Collections.singletonList(u));
+         }
+      };
+   }
+
+   public BiPipe<T, ? extends Iterable<U>> groupByKey()
+   {
+      return groupByKeyValuesInto(
+         new Factory<ArrayList<U>>()
+         {
+            @Override
+            public ArrayList<U> make()
+            {
+               return new ArrayList<>();
+            }
+         }
+      );
+   }
+
+   public <C extends Collection<U>> BiPipe<T, C> groupByKeyValuesInto(final Factory<C> valuesCollectionFactory)
+   {
+      return new BiStep<T, U, T, C>(this)
+      {
+         private Map<T, C> multiMap;
+
+         @Override
+         public void apply(T t, U u)
+         {
+            C values = multiMap.get(t);
+            if (values == null)
+            {
+               values = valuesCollectionFactory.make();
+               multiMap.put(t, values);
+            }
+            values.add(u);
+         }
+
+         @Override
+         protected void process()
+         {
+            multiMap = new HashMap<>();
+
+            try
+            {
+               super.process();
+
+               for (Map.Entry<T, C> entry : multiMap.entrySet())
+               {
+                  downstream.apply(entry.getKey(), entry.getValue());
+               }
+            }
+            finally
+            {
+               multiMap.clear();
+               multiMap = null;
+            }
+         }
+      };
+   }
+
+   // TODO: optimize this!
+   public <C extends Comparable<C>> BiPipe<T, U> sortBy(final BiMapper<? super T, ? super U, C> sortKeyExtractor)
+   {
+      class TUC implements Comparable<TUC>
+      {
+         final T t;
+         final U u;
+         final C c;
+
+         TUC(T t, U u, C c)
+         {
+            this.t = t;
+            this.u = u;
+            this.c = c;
+         }
+
+         @Override
+         public int compareTo(TUC other) { return this.c.compareTo(other.c); }
+      }
+
+      return new BiStep<T, U, T, U>(this)
+      {
+         private Object[] array;
+         private int size;
+
+         @Override
+         public void apply(T t, U u)
+         {
+            if (size >= array.length)
+               array = Arrays.copyOf(array, array.length * 2);
+
+            array[size++] = new TUC(t, u, sortKeyExtractor.map(t, u));
+         }
+
+         @Override
+         protected void process()
+         {
+            array = new Object[DEFAULT_BUFFER_CAPACITY];
+            size = 0;
+
+            try
+            {
+               super.process();
+
+               Arrays.sort(array, 0, size);
+
+               for (int i = 0; i < size; i++)
+               {
+                  TUC tuc = (TUC) array[i];
+                  downstream.apply(tuc.t, tuc.u);
+               }
+            }
+            finally
+            {
+               array = null;
+            }
          }
       };
    }
@@ -283,11 +396,6 @@ public abstract class BiPipe<T, U> extends AbstractPipe<BiBlock<? super T, ? sup
    public boolean noneMatch(BiPredicate<? super T, ? super U> predicate)
    {
       return !anyMatch(predicate);
-   }
-
-   public BiPipe<T, U> sorted(Comparator<? super T> comparator)
-   {
-      return from(into(new TreeMap<T, U>(comparator)));
    }
 
    //

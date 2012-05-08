@@ -1,7 +1,7 @@
 package pushpipes;
 
-import java.util.NoSuchElementException;
-import java.util.functions.DoubleBinaryOperator;
+import java.util.*;
+import java.util.functions.*;
 
 /**
  * @author peter.levart@gmail.com
