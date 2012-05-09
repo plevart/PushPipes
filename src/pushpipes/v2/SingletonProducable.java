@@ -1,8 +1,7 @@
 package pushpipes.v2;
 
 /**
- * @author peter
- * @created 5/9/12 @ 12:28 PM
+ * @author peter.levart@gmail.com
  */
 public class SingletonProducable<T> extends SingleValuedProducable<T>
 {

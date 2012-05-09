@@ -1,8 +1,7 @@
 package pushpipes.v2;
 
 /**
- * @author peter
- * @created 5/9/12 @ 9:37 AM
+ * @author peter.levart@gmail.com
  */
 public interface Producable<DS extends Producer>
 {

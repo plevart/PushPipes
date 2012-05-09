@@ -1,8 +1,7 @@
 package pushpipes.v2;
 
 /**
- * @author peter
- * @created 5/9/12 @ 10:06 AM
+ * @author peter.levart@gmail.com
  */
 public interface Producer
 {
@@ -10,7 +9,8 @@ public interface Producer
     * Tries to produce next output if it has any. This call does not necessarily produce any output
     * if there is none available.
     *
-    * @return true if there is more output to produce or false if all output is exhausted
+    * @return true if this or any downstream producer has more output to produce
+    *         or false if all output is exhausted
     */
    boolean produceNext();
 

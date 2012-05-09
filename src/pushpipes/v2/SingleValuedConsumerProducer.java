@@ -3,8 +3,7 @@ package pushpipes.v2;
 import java.util.*;
 
 /**
- * @author peter
- * @created 5/9/12 @ 4:20 PM
+ * @author peter.levart@gmail.com
  */
 public interface SingleValuedConsumerProducer<T> extends Producer
 {

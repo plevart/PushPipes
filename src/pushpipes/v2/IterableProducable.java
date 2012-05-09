@@ -3,8 +3,7 @@ package pushpipes.v2;
 import java.util.*;
 
 /**
- * @author peter
- * @created 5/9/12 @ 12:27 PM
+ * @author peter.levart@gmail.com
  */
 public class IterableProducable<T> extends SingleValuedProducable<T>
 {

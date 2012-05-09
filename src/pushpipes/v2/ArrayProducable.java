@@ -1,8 +1,7 @@
 package pushpipes.v2;
 
 /**
- * @author peter
- * @created 5/9/12 @ 1:23 PM
+ * @author peter.levart@gmail.com
  */
 public class ArrayProducable<T> extends SingleValuedProducable<T>
 {

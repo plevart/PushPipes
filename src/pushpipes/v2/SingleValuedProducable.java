@@ -4,11 +4,11 @@ import java.util.*;
 import java.util.functions.*;
 
 /**
- * @author peter
- * @created 5/9/12 @ 2:14 PM
+ * @author peter.levart@gmail.com
  */
 public abstract class SingleValuedProducable<T>
-   implements Producable<SingleValuedConsumerProducer<? super T>>, Iterable<T>
+   implements Producable<SingleValuedConsumerProducer<? super T>>,
+              Iterable<T> // YES, we are Iterable! (push-pull)
 {
    //
    // chain building
