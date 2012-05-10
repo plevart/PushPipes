@@ -2,6 +2,8 @@ package pushpipes.v2.test;
 
 import pushpipes.v2.*;
 
+import java.util.*;
+
 /**
  * @author peter.levart@gmail.com
  */
@@ -9,9 +11,21 @@ public class ProducableTests
 {
    public static void main(String[] args)
    {
-      SingleValuedProducable<String> strings = new ArrayProducable<>("abc", "def", "ghi");
+      Producable<String> strings = Producable.from("abc", "bcd", "cde", "def", "efg");
 
-      for (String s : strings.map(str -> str.toUpperCase()))
+      for (
+         String s
+         :
+         strings
+            .map(str -> str.toUpperCase())
+            .sorted(Comparators.reverseOrder())
+            .filter(str -> str.contains("D"))
+            .map(str -> str.toLowerCase())
+            .flatMap(str -> str.splitAsStream(""))
+            .filter(str -> !str.isEmpty())
+            .uniqueElements()
+            .sorted(Comparators.<String>naturalOrder())
+         )
          System.out.println(s);
    }
 }
