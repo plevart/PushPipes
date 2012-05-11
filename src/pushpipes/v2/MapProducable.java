@@ -16,7 +16,7 @@ public abstract class MapProducable<K, V> implements MapStream<K, V>
 {
    /**
     * Constructs and returns a chain of:<p/>
-    * head {@link Producer} -> ... intermediate (map)transformers ... -> downstream {@link MapTransformer}<p/>
+    * head {@link Producer} -> ... (Map)Transformers ... -> downstream {@link MapTransformer}<p/>
     * ...and returns the head producer.
     *
     * @param downstream a downstream {@link MapTransformer} that the chain will be connected to
@@ -24,23 +24,23 @@ public abstract class MapProducable<K, V> implements MapStream<K, V>
     */
    public abstract Producer producer(MapTransformer<? super K, ? super V> downstream);
 
-//   /**
-//    * Constructs and returns a chain of:
-//    * <pre>
-//    * head {@link Producer} -> ... intermediate (map)transformers ... -> {@link MapConsumer}
-//    * </pre>
-//    * ...and returns the head producer.
-//    *
-//    * @param mapConsumer a {@link MapConsumer} that the chain will be connected to
-//    * @return a head {@link Producer}
-//    */
-//   public Producer producer(MapConsumer<? super K, ? super V> mapConsumer)
-//   {
-//      if (mapConsumer instanceof MapTransformer<?, ?>)
-//         return producer((MapTransformer<? super K, ? super V>) mapConsumer);
-//      else
-//         return producer(new MapTransformer.MapConsumerTail<>(mapConsumer));
-//   }
+   /**
+    * Constructs and returns a chain of:
+    * <pre>
+    * head {@link Producer} -> ... (Map)Transformers ... -> {@link MapConsumer}
+    * </pre>
+    * ...and returns the head producer.
+    *
+    * @param mapConsumer a {@link MapConsumer} that the chain will be connected to
+    * @return a head {@link Producer}
+    */
+   public Producer producer(MapConsumer<? super K, ? super V> mapConsumer)
+   {
+      if (mapConsumer instanceof MapTransformer<?, ?>)
+         return producer((MapTransformer<? super K, ? super V>) mapConsumer);
+      else
+         return producer(new MapTransformer.MapConsumerTail<>(mapConsumer));
+   }
 
    //
    // building chains
@@ -264,8 +264,11 @@ public abstract class MapProducable<K, V> implements MapStream<K, V>
    public MapProducable<K, V> merge(final MapStream<K, V> other)
    {
       if (other instanceof MapProducable<?, ?>)
+      {
          return merge((MapProducable<K, V>) other);
+      }
       else
+      {
          return new MapProducable<K, V>()
          {
             @Override
@@ -304,6 +307,7 @@ public abstract class MapProducable<K, V> implements MapStream<K, V>
                );
             }
          };
+      }
    }
 
    public MapProducable<K, V> merge(final MapProducable<K, V> other)

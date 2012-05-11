@@ -1,7 +1,7 @@
 package pushpipes.v2;
 
 /**
- * Same as {@link Consumer}, but consumer pairs of objects (key, value) via {@link #consume} method.
+ * Same as {@link Consumer}, but consumes pairs of objects (key, value) via {@link #consume} method.
  *
  * @see Consumer
  * @see MapTransformer

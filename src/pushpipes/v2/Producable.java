@@ -31,7 +31,7 @@ public abstract class Producable<T> implements Iterable<T>
    /**
     * Constructs and returns a chain of:
     * <pre>
-    * head {@link Producer} -> ... intermediate {@link Transformer}s ... -> downstream {@link Transformer}
+    * head {@link Producer} -> ... intermediate (Map)Transformers ... -> downstream {@link Transformer}
     * </pre>
     * ...and returns the head producer.
     *
@@ -43,7 +43,7 @@ public abstract class Producable<T> implements Iterable<T>
    /**
     * Constructs and returns a chain of:
     * <pre>
-    * head {@link Producer} -> ... intermediate {@link Transformer}s ... -> {@link Consumer}
+    * head {@link Producer} -> ... intermediate (Map)Transformers ... -> {@link Consumer}
     * </pre>
     * ...and returns the head producer.
     *
