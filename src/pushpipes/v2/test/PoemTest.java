@@ -1,13 +1,15 @@
-package pushpipes.test;
+package pushpipes.v2.test;
 
 import pushpipes.*;
+import pushpipes.v2.*;
 
 import java.util.*;
+import java.util.functions.*;
 
 /**
  * @author peter.levart@gmail.com
  */
-public class PipeTests
+public class PoemTest
 {
    public static void main(String[] args)
    {
@@ -31,22 +33,24 @@ public class PipeTests
 
       System.out.println("\n" + poem + "\n\n                 France Prešeren\n---\n");
 
-      List<String> words = Pipe.from(poem)
+      List<String> words = Producable.from(poem)
          .flatMap(s -> s.splitAsStream("[ ,\\.;!'\\-\\n]+"))
          .map(s -> s.toLowerCase(new Locale("sl_SI")))
          .into(new ArrayList<String>());
 
-      int chars = Pipe.from(words).mapInt(s -> s.length()).reduce((l1, l2) -> l1 + l2);
+      int chars = Producable.from(words).mapReduce(s -> s.length(), 0, (IntBinaryOperator)(l1, l2) -> l1 + l2);
 
       System.out.println("word stream (" + words.size() + " words, " + chars + " chars): " + words + "\n");
 
       System.out.println("distinct words by word lengths:\n");
 
-      Pipe.from(words)
+      Producable.from(words)
          .mapped(w -> w.length())
          .swap()
-         .groupByKeyValuesInto(HashSet<String>::new)
-         .sortBy((len, wrds) -> wrds.size())
+         .intoMulti(new HashMap<Integer, HashSet<String>>(), HashSet<String>::new)
+         .swap()
+         .sorted(Comparators.<Collection<String>>comparing((IntMapper<Collection<String>>) Collection::size))
+         .swap()
          .forEach((len, wrds) ->
           {
              System.out.println("length=" + len + " : " + wrds.size() + " : " + wrds);
@@ -54,14 +58,16 @@ public class PipeTests
 
       System.out.println("\ndistinct words by containing chars:\n");
 
-      Pipe.from(words)
+      Producable.from(words)
          .mapped(w -> w.splitAsStream(""))
          .flatMap((w, cs) -> cs)
          .filterValues(c -> !c.isEmpty())
          .swap()
-         .groupByKeyValuesInto(HashSet<String>::new)
-         .sortBy((c, wrds) -> wrds.size())
-         .forEach((c, wrds) ->
+         .intoMulti(new HashMap<String, HashSet<String>>(), HashSet<String>::new)
+         .swap()
+         .sorted(Comparators.<Collection<String>>comparing((IntMapper<Collection<String>>) Collection::size))
+         .swap()
+          .forEach((c, wrds) ->
           {
              System.out.println("char='" + c + "' : " + wrds.size() + " : " + wrds);
           });

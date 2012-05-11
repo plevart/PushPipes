@@ -1,25 +1,31 @@
 package pushpipes.v2.test;
 
+import pushpipes.v2.*;
+
 import java.util.*;
 
+/**
+ * @author peter.levart@gmail.com
+ */
 public class SimpleTest
 {
-   static class MyList<T> extends ArrayList<T>
-   {
-      @Override
-      public Iterable<T> sorted(Comparator<? super T> comparator)
-      {
-         return super.sorted(comparator);
-      }
-   }
-
    public static void main(String[] args)
    {
-      MyList<String> strings = new MyList<>();
-      strings.add("aaa");
-      strings.add("bbb");
-      strings.add("ccc");
+      Producable<String> strings = Producable.from("abc", "bcd", "cde", "def", "efg");
 
-      System.out.println(strings.sorted(Comparators.reverseOrder()));
+      for (
+         String s
+         :
+         strings
+            .map(str -> str.toUpperCase())
+            .sorted(Comparators.reverseOrder())
+            .filter(str -> str.contains("D"))
+            .map(str -> str.toLowerCase())
+            .flatMap(str -> str.splitAsStream(""))
+            .filter(str -> !str.isEmpty())
+            .uniqueElements()
+            .sorted(Comparators.<String>naturalOrder())
+         )
+         System.out.println(s);
    }
 }
