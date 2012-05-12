@@ -1,7 +1,8 @@
 package pushpipes.v2;
 
-import java.util.*;
-import java.util.functions.*;
+import java.util.NoSuchElementException;
+import java.util.functions.BiBlock;
+import java.util.functions.BiPredicate;
 
 /**
  * Same as {@link Transformer} but instead of being a {@link Consumer} it is a {@link MapConsumer}.
@@ -19,6 +20,14 @@ public interface MapTransformer<K, V> extends MapConsumer<K, V>, Producer
     *         next call to {@link #consume} will not throw {@link IllegalStateException}.
     */
    boolean canConsume();
+
+   /**
+    * @param k the key to consume
+    * @param v the value to consume
+    * @throws IllegalStateException if this transformer is in a state that doesn't allow consuming
+    */
+   @Override
+   void consume(K k, V v) throws IllegalStateException;
 
    //
    // some tail implementations

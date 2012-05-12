@@ -1,6 +1,7 @@
 package pushpipes.v2;
 
-import java.util.*;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 import java.util.functions.*;
 
 /**
@@ -29,6 +30,13 @@ public interface Transformer<T> extends Consumer<T>, Producer
     *         next call to {@link #consume} will not throw {@link IllegalStateException}.
     */
    boolean canConsume();
+
+   /**
+    * @param t the object to consume
+    * @throws IllegalStateException if this transformer is in a state that doesn't allow consuming
+    */
+   @Override
+   void consume(T t) throws IllegalStateException;
 
    //
    // some tail implementations
