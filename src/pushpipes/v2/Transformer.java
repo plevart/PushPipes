@@ -2,7 +2,9 @@ package pushpipes.v2;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.functions.*;
+import java.util.functions.BinaryOperator;
+import java.util.functions.Block;
+import java.util.functions.Predicate;
 
 /**
  * A {@link Transformer} is a {@link Consumer} and a {@link Producer}, but not necessarily both all the time.
@@ -277,123 +279,6 @@ public interface Transformer<T> extends Consumer<T>, Producer
       }
 
       public T getResult(Producer producer) throws NoSuchElementException
-      {
-         while (producer.produce()) {}
-
-         if (hasResult)
-            return result;
-
-         throw new NoSuchElementException();
-      }
-   }
-
-   final class IntReducerTail<T> extends Tail<T>
-   {
-      private final IntMapper<? super T> intMapper;
-      private final IntBinaryOperator reducer;
-
-      public IntReducerTail(IntMapper<? super T> intMapper, IntBinaryOperator reducer)
-      {
-         this.intMapper = intMapper;
-         this.reducer = reducer;
-      }
-
-      public IntReducerTail(IntMapper<? super T> intMapper, int base, IntBinaryOperator reducer)
-      {
-         this(intMapper, reducer);
-         result = base;
-         hasResult = true;
-      }
-
-      private int result;
-      private boolean hasResult;
-
-      @Override
-      public void consume(T t) throws IllegalStateException
-      {
-         result = hasResult ? reducer.eval(result, intMapper.map(t)) : intMapper.map(t);
-         hasResult = true;
-      }
-
-      public int getResult(Producer producer) throws NoSuchElementException
-      {
-         while (producer.produce()) {}
-
-         if (hasResult)
-            return result;
-
-         throw new NoSuchElementException();
-      }
-   }
-
-   final class LongReducerTail<T> extends Tail<T>
-   {
-      private final LongMapper<? super T> longMapper;
-      private final LongBinaryOperator reducer;
-
-      public LongReducerTail(LongMapper<? super T> longMapper, LongBinaryOperator reducer)
-      {
-         this.longMapper = longMapper;
-         this.reducer = reducer;
-      }
-
-      public LongReducerTail(LongMapper<? super T> longMapper, long base, LongBinaryOperator reducer)
-      {
-         this(longMapper, reducer);
-         result = base;
-         hasResult = true;
-      }
-
-      private long result;
-      private boolean hasResult;
-
-      @Override
-      public void consume(T t) throws IllegalStateException
-      {
-         result = hasResult ? reducer.eval(result, longMapper.map(t)) : longMapper.map(t);
-         hasResult = true;
-      }
-
-      public long getResult(Producer producer) throws NoSuchElementException
-      {
-         while (producer.produce()) {}
-
-         if (hasResult)
-            return result;
-
-         throw new NoSuchElementException();
-      }
-   }
-
-   final class DoubleReducerTail<T> extends Tail<T>
-   {
-      private final DoubleMapper<? super T> doubleMapper;
-      private final DoubleBinaryOperator reducer;
-
-      public DoubleReducerTail(DoubleMapper<? super T> doubleMapper, DoubleBinaryOperator reducer)
-      {
-         this.doubleMapper = doubleMapper;
-         this.reducer = reducer;
-      }
-
-      public DoubleReducerTail(DoubleMapper<? super T> doubleMapper, double base, DoubleBinaryOperator reducer)
-      {
-         this(doubleMapper, reducer);
-         result = base;
-         hasResult = true;
-      }
-
-      private double result;
-      private boolean hasResult;
-
-      @Override
-      public void consume(T t) throws IllegalStateException
-      {
-         result = hasResult ? reducer.eval(result, doubleMapper.map(t)) : doubleMapper.map(t);
-         hasResult = true;
-      }
-
-      public double getResult(Producer producer) throws NoSuchElementException
       {
          while (producer.produce()) {}
 

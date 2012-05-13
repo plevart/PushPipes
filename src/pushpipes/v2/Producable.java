@@ -658,6 +658,13 @@ public abstract class Producable<T> implements Iterable<T>
    }
 
    @Override
+   public <A extends Fillable<? super T>> A into(A target)
+   {
+      // reuse our Iterable facade...
+      return Iterables.into(this, target);
+   }
+
+   @Override
    public T reduce(T base, BinaryOperator<T> reducer)
    {
       Transformer.ReducerTail<T> reducerTail = new Transformer.ReducerTail<>(base, reducer);
@@ -673,28 +680,120 @@ public abstract class Producable<T> implements Iterable<T>
    @Override
    public int mapReduce(IntMapper<? super T> intMapper, int base, IntBinaryOperator reducer)
    {
-      Transformer.IntReducerTail<T> reducerTail = new Transformer.IntReducerTail<>(intMapper, base, reducer);
-      return reducerTail.getResult(producer(reducerTail));
+      return mapInt(intMapper).reduce(base, reducer);
    }
 
    @Override
    public long mapReduce(LongMapper<? super T> longMapper, long base, LongBinaryOperator reducer)
    {
-      Transformer.LongReducerTail<T> reducerTail = new Transformer.LongReducerTail<>(longMapper, base, reducer);
-      return reducerTail.getResult(producer(reducerTail));
+      return mapLong(longMapper).reduce(base, reducer);
    }
 
    @Override
    public double mapReduce(DoubleMapper<? super T> doubleMapper, double base, DoubleBinaryOperator reducer)
    {
-      Transformer.DoubleReducerTail<T> reducerTail = new Transformer.DoubleReducerTail<>(doubleMapper, base, reducer);
-      return reducerTail.getResult(producer(reducerTail));
+      return mapDouble(doubleMapper).reduce(base, reducer);
    }
 
-   @Override
-   public <A extends Fillable<? super T>> A into(A target)
+   //
+   // additional chain building methods not in Iterable
+
+   public IntProducable mapInt(final IntMapper<? super T> mapper)
    {
-      // reuse our Iterable facade...
-      return Iterables.into(this, target);
+      return new IntProducable()
+      {
+         @Override
+         public Producer producer(final IntTransformer downstream)
+         {
+            return Producable.this.producer(
+               new Transformer<T>()
+               {
+                  @Override
+                  public boolean canConsume()
+                  {
+                     return downstream.canConsume();
+                  }
+
+                  @Override
+                  public void consume(T t) throws IllegalStateException
+                  {
+                     downstream.consume(mapper.map(t));
+                  }
+
+                  @Override
+                  public boolean produce()
+                  {
+                     return downstream.produce();
+                  }
+               }
+            );
+         }
+      };
+   }
+
+   public LongProducable mapLong(final LongMapper<? super T> mapper)
+   {
+      return new LongProducable()
+      {
+         @Override
+         public Producer producer(final LongTransformer downstream)
+         {
+            return Producable.this.producer(
+               new Transformer<T>()
+               {
+                  @Override
+                  public boolean canConsume()
+                  {
+                     return downstream.canConsume();
+                  }
+
+                  @Override
+                  public void consume(T t) throws IllegalStateException
+                  {
+                     downstream.consume(mapper.map(t));
+                  }
+
+                  @Override
+                  public boolean produce()
+                  {
+                     return downstream.produce();
+                  }
+               }
+            );
+         }
+      };
+   }
+
+   public DoubleProducable mapDouble(final DoubleMapper<? super T> mapper)
+   {
+      return new DoubleProducable()
+      {
+         @Override
+         public Producer producer(final DoubleTransformer downstream)
+         {
+            return Producable.this.producer(
+               new Transformer<T>()
+               {
+                  @Override
+                  public boolean canConsume()
+                  {
+                     return downstream.canConsume();
+                  }
+
+                  @Override
+                  public void consume(T t) throws IllegalStateException
+                  {
+                     downstream.consume(mapper.map(t));
+                  }
+
+                  @Override
+                  public boolean produce()
+                  {
+                     return downstream.produce();
+                  }
+               }
+            );
+         }
+      };
    }
 }

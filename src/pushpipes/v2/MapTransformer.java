@@ -142,53 +142,11 @@ public interface MapTransformer<K, V> extends MapConsumer<K, V>, Producer
             throw new NoSuchElementException();
       }
 
-      public K getFirstKey() throws NoSuchElementException
-      {
-         if (hasResult())
-            return resultKey;
-         else
-            throw new NoSuchElementException();
-      }
-
-      public V getFirstValue() throws NoSuchElementException
-      {
-         if (hasResult())
-            return resultValue;
-         else
-            throw new NoSuchElementException();
-      }
-
       public BiValue<K, V> getOnlyResult() throws NoSuchElementException, IllegalStateException
       {
          try
          {
             return getFirstResult();
-         }
-         finally
-         {
-            // this will throw IllegalStateException if there is a second result...
-            while (producer.produce()) {}
-         }
-      }
-
-      public K getOnlyKey() throws NoSuchElementException, IllegalStateException
-      {
-         try
-         {
-            return getFirstKey();
-         }
-         finally
-         {
-            // this will throw IllegalStateException if there is a second result...
-            while (producer.produce()) {}
-         }
-      }
-
-      public V getOnlyValue() throws NoSuchElementException, IllegalStateException
-      {
-         try
-         {
-            return getFirstValue();
          }
          finally
          {

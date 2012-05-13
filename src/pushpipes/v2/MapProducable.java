@@ -277,7 +277,7 @@ public abstract class MapProducable<K, V> implements MapStream<K, V>
                return MapProducable.this.producer(
                   new MapTransformer<K, V>()
                   {
-                     Iterator<BiValue<K, V>> otherIterator = other.asIterable().iterator();
+                     Iterator<? extends BiValue<K, V>> otherIterator = other.asIterable().iterator();
 
                      @Override
                      public boolean canConsume()
@@ -414,7 +414,7 @@ public abstract class MapProducable<K, V> implements MapStream<K, V>
    }
 
    @Override
-   public Producable<BiValue<K, V>> asIterable()
+   public Producable<? extends BiValue<K, V>> asIterable()
    {
       return new Producable<BiValue<K, V>>()
       {
@@ -610,37 +610,5 @@ public abstract class MapProducable<K, V> implements MapStream<K, V>
             );
          }
       };
-   }
-
-   // some additional executing methods (not in MapStream)
-
-   public K getFirstKey()
-   {
-      return singleResultTail().getFirstKey();
-   }
-
-   public K getOnlyKey()
-   {
-      return singleResultTail().getOnlyKey();
-   }
-
-   public K getAnyKey()
-   {
-      return singleResultTail().getFirstKey();
-   }
-
-   public V getFirstValue()
-   {
-      return singleResultTail().getFirstValue();
-   }
-
-   public V getOnlyValue()
-   {
-      return singleResultTail().getOnlyValue();
-   }
-
-   public V getAnyValue()
-   {
-      return singleResultTail().getFirstValue();
    }
 }
