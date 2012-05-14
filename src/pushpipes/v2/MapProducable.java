@@ -414,7 +414,7 @@ public abstract class MapProducable<K, V> implements MapStream<K, V>
    }
 
    @Override
-   public Producable<? extends BiValue<K, V>> asIterable()
+   public Producable<BiValue<K, V>> asIterable()
    {
       return new Producable<BiValue<K, V>>()
       {
