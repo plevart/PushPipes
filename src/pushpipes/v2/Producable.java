@@ -91,6 +91,11 @@ public abstract class Producable<T> implements Iterable<T>
    @SafeVarargs
    public static <T> Producable<T> from(final T... array)
    {
+      return from(array, 0, array.length);
+   }
+
+   public static <T> Producable<T> from(final T[] array, final int offset, final int length)
+   {
       return new Producable<T>()
       {
          @Override
@@ -98,12 +103,13 @@ public abstract class Producable<T> implements Iterable<T>
          {
             return new Producer()
             {
-               int i;
+               final int end = offset + length;
+               int i = offset;
 
                @Override
                public boolean produce()
                {
-                  if (i < array.length && downstream.canConsume())
+                  if (i < end && downstream.canConsume())
                   {
                      downstream.consume(array[i++]);
                      return true;
